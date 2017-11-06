@@ -37,6 +37,11 @@ class WC_Admin_Dashboard {
 			wp_add_dashboard_widget( 'woocommerce_dashboard_recent_reviews', __( 'WooCommerce recent reviews', 'woocommerce' ), array( $this, 'recent_reviews' ) );
 		}
 		wp_add_dashboard_widget( 'woocommerce_dashboard_status', __( 'WooCommerce status', 'woocommerce' ), array( $this, 'status_widget' ) );
+
+		// Network Order Widget
+		if ( is_multisite() ) {
+			wp_add_dashboard_widget( 'woocommerce_network_orders', __( "WooCommerce Network Orders", 'woocommerce' ), array( $this, 'network_orders' ) );
+		}
 	}
 
 	/**
@@ -286,6 +291,70 @@ class WC_Admin_Dashboard {
 			echo '<p>' . __( 'There are no product reviews yet.', 'woocommerce' ) . '</p>';
 		}
 	}
+
+	/**
+	 * Network orders widget
+	 */
+	public function network_orders() {
+		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
+
+		wp_enqueue_script( 'network-orders', WC()->plugin_url() . '/assets/js/admin/network-orders' . $suffix . '.js', array( 'jquery', 'underscore' ), WC_VERSION, true );
+
+		$user = wp_get_current_user();
+		$blogs = get_blogs_of_user( $user->ID );
+		$blog_ids = wp_list_pluck( $blogs, 'userblog_id' );
+
+		wp_localize_script( 'network-orders', 'woocommerce_network_orders', array(
+			'nonce' => wp_create_nonce( 'wp_rest' ),
+			'sites' => array_values( $blog_ids ),
+			'order_endpoint' => get_rest_url( null, 'wc/v2/orders/network' ),
+		) );
+		?>
+		<div class="post-type-shop_order">
+			<div id="woocommerce-network-order-table-loading" class="woocommerce-network-order-table-loading is-active">
+				<p>
+					<span class="spinner is-active"></span> <?php esc_html_e( 'Loading Network Orders', 'woocommerce' ); ?>
+				</p>
+
+			</div>
+			<table id="woocommerce-network-order-table" class="woocommerce-network-order-table wp-list-table">
+				<thead>
+					<tr>
+						<td>Order</td>
+						<td>Status</td>
+						<td>Total</td>
+					</tr>
+				</thead>
+				<tbody id="network-orders-tbody">
+
+				</tbody>
+			</table>
+			<div id="woocommerce-network-orders-no-orders" class="woocommerce-network-orders-no-orders">
+				<p>
+					<?php esc_html_e( "No orders found", 'woocommerce' ); ?>
+				</p>
+			</div>
+			<script type="text/template" id="network-orders-row-template">
+				<tr>
+					<td>
+						<a href="<%- edit_url %>" class="order-view"><strong>#<%- id %> <%- buyer %></strong></a>
+						<br>
+						<em>
+							<%- blog.blogname %>
+						</em>
+					</td>
+					<td>
+						<mark class="order-status status-<%- status %>"><span><%- status_name %></span></mark>
+					</td>
+					<td>
+						<%= formatted_total %>
+					</td>
+				</tr>
+			</script>
+		</div>
+		<?php
+	}
+
 }
 
 endif;
